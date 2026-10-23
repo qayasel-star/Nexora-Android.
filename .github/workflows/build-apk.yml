@@ -1,4 +1,3 @@
-
 name: Build Nexora APK
 
 on:
@@ -14,7 +13,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -29,64 +27,30 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          accept-android-sdk-licenses: true
 
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
+        run: set +o pipefail; yes | sdkmanager --licenses
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Verify project ZIP
-        run: |
-          if [ ! -f "Nexora-Android-Project-v4.zip" ]; then
-            echo "ERROR: No se encontró Nexora-Android-Project-v4.zip en la raíz del repositorio."
-            ls -la
-            exit 1
-          fi
+      - name: Verify Nexora ZIP
+        run: test -f Nexora-Android-Project-v4-actualizado.zip
 
-      - name: Extract Nexora source ZIP
-        run: unzip -q Nexora-Android-Project-v4.zip -d source
+      - name: Extract Nexora source
+        run: unzip -q Nexora-Android-Project-v4-actualizado.zip -d source
 
-      - name: Locate Gradle project
-        run: |
-          echo "Buscando archivos Gradle..."
-          find source -maxdepth 5 \( -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts -o -name gradlew \) -print
-          if [ ! -d "source/Nexora" ]; then
-            echo "ERROR: No se encontró la carpeta source/Nexora."
-            find source -maxdepth 3 -type d -print
-            exit 1
-          fi
-
-      - name: Calculate version
-        id: version
-        shell: bash
-        run: |
-          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-          echo "name=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-
-      - name: Build versioned APK
+      - name: Build Nexora APK
         working-directory: source/Nexora
-        run: |
-          gradle --no-daemon assembleDebug \
-            -PversionCode=${{ steps.version.outputs.code }} \
-            -PversionName=${{ steps.version.outputs.name }}
-
-      - name: Rename APK
-        run: |
-          APK_PATH="source/Nexora/app/build/outputs/apk/debug/app-debug.apk"
-          if [ ! -f "$APK_PATH" ]; then
-            echo "ERROR: No se encontró el APK compilado."
-            find source -path '*/build/outputs/apk/*' -type f -print
-            exit 1
-          fi
-          cp "$APK_PATH" "Nexora-${{ steps.version.outputs.name }}-debug.apk"
+        run: gradle --no-daemon assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Nexora-${{ steps.version.outputs.name }}-apk
-          path: Nexora-${{ steps.version.outputs.name }}-debug.apk
+          name: Nexora-debug-apk
+          path: source/Nexora/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
