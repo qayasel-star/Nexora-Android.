@@ -27,16 +27,39 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
+      - name: Verify project ZIP
+        run: |
+          if [ ! -f "Nexora-Android-Project-v4.zip" ]; then
+            echo "ERROR: No se encontró Nexora-Android-Project-v4.zip en la raíz del repositorio."
+            ls -la
+            exit 1
+          fi
+
       - name: Extract Nexora source ZIP
         run: unzip -q Nexora-Android-Project-v4.zip -d source
 
-      - name: Calculate version from workflow run
+      - name: Locate Gradle project
+        run: |
+          echo "Buscando archivos Gradle..."
+          find source -maxdepth 5 \( -name settings.gradle -o -name settings.gradle.kts -o -name build.gradle -o -name build.gradle.kts -o -name gradlew \) -print
+          if [ ! -d "source/Nexora" ]; then
+            echo "ERROR: No se encontró la carpeta source/Nexora."
+            find source -maxdepth 3 -type d -print
+            exit 1
+          fi
+
+      - name: Calculate version
         id: version
         shell: bash
         run: |
@@ -52,8 +75,13 @@ jobs:
 
       - name: Rename APK
         run: |
-          cp "source/Nexora/app/build/outputs/apk/debug/app-debug.apk" \
-             "Nexora-${{ steps.version.outputs.name }}-debug.apk"
+          APK_PATH="source/Nexora/app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "ERROR: No se encontró el APK compilado."
+            find source -path '*/build/outputs/apk/*' -type f -print
+            exit 1
+          fi
+          cp "$APK_PATH" "Nexora-${{ steps.version.outputs.name }}-debug.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -62,4 +90,3 @@ jobs:
           path: Nexora-${{ steps.version.outputs.name }}-debug.apk
           if-no-files-found: error
           retention-days: 30
-          
