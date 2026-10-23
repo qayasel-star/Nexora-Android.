@@ -13,68 +13,77 @@ permissions:
 
 jobs:
   build:
+    name: Compilar NEXORA
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Descargar el repositorio
       - name: Descargar codigo del repositorio
         uses: actions/checkout@v4
 
-      # 2. Configurar Java
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # 3. Instalar herramientas del SDK Android
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 12266719
+          accept-android-sdk-licenses: true
+          packages: platform-tools
 
-      # 4. Aceptar las licencias del SDK
       - name: Aceptar licencias Android
         shell: bash
         run: |
-          set -o pipefail
+          set -e
+          set +o pipefail
           yes | sdkmanager --licenses
+          set -o pipefail
 
-      # 5. Instalar las versiones necesarias
       - name: Instalar componentes Android
         shell: bash
         run: |
+          set -e
           sdkmanager \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      # 6. Encontrar el proyecto Android
-      - name: Localizar proyecto Nexora
+      - name: Aceptar licencias de los componentes
+        shell: bash
+        run: |
+          set -e
+          set +o pipefail
+          yes | sdkmanager --licenses
+          set -o pipefail
+
+      - name: Localizar proyecto NEXORA
         id: project
         shell: bash
         run: |
+          set -e
+
           if [ -f "app/build.gradle" ] || [ -f "app/build.gradle.kts" ]; then
             echo "dir=." >> "$GITHUB_OUTPUT"
-
           elif [ -f "Nexora/app/build.gradle" ] || [ -f "Nexora/app/build.gradle.kts" ]; then
             echo "dir=Nexora" >> "$GITHUB_OUTPUT"
-
           else
             echo "ERROR: No se encontro el proyecto Android."
             echo "Contenido del repositorio:"
             ls -la
+            find . -maxdepth 4 \
+              \( -name build.gradle -o -name build.gradle.kts \) \
+              -print
             exit 1
           fi
 
-      # 7. Configurar Gradle
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      # 8. Compilar la aplicacion
-      - name: Compilar APK de Nexora
+      - name: Compilar APK de NEXORA
         shell: bash
         run: |
           set -e
@@ -87,22 +96,25 @@ jobs:
             gradle --no-daemon assembleDebug
           fi
 
-      # 9. Comprobar que se genero el APK
       - name: Verificar APK generado
         shell: bash
         run: |
+          set -e
+
           APK="${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk"
 
           if [ ! -f "$APK" ]; then
             echo "ERROR: No se encontro el APK esperado."
-            find "${{ steps.project.outputs.dir }}" -type f -name "*.apk"
+            echo "Archivos APK encontrados:"
+            find "${{ steps.project.outputs.dir }}" \
+              -type f -name "*.apk" -print
             exit 1
           fi
 
+          echo "APK generado correctamente:"
           ls -lh "$APK"
 
-      # 10. Publicar el APK para descargarlo
-      - name: Publicar APK
+      - name: Publicar APK para descargar
         uses: actions/upload-artifact@v4
         with:
           name: Nexora-debug-apk
