@@ -1,9 +1,12 @@
+
 name: Build Nexora APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
@@ -11,34 +14,39 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Java 17
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Set up Gradle
+          java-version: "17"
+
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
-      - name: Extract Nexora source ZIP
+          gradle-version: "8.9"
+
+      - name: Check ZIP
+        run: ls -la
+
+      - name: Extract project
         run: unzip -q Nexora-Android-Project-v3.zip -d source
-      - name: Calculate version from workflow run
-        id: version
-        shell: bash
-        run: | echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT" echo "name=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"       - name: Build versioned APK
+
+      - name: Inspect project
+        run: find source -maxdepth 4 -type f | head -100
+
+      - name: Build APK
+        run: gradle --no-daemon assembleDebug
         working-directory: source/Nexora
-        run: gradle --no-daemon assembleDebug -PversionCode=${{ steps.version.outputs.code }} -PversionName=${{ steps.version.outputs.name }}
-      - name: Rename APK
-        run: cp "source/Nexora/app/build/outputs/apk/debug/app-debug.apk" "Nexora-${{ steps.version.outputs.name }}-debug.apk"
-      - name: Upload APK artifact
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nexora-${{ steps.version.outputs.name }}-apk
-          path: Nexora-${{ steps.version.outputs.name }}-debug.apk
+          name: Nexora-debug-apk
+          path: source/Nexora/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
